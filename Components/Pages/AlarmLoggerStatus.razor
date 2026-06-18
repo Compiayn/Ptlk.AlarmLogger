@@ -2,12 +2,14 @@
 @page "/alarm-logger-status"
 @rendermode InteractiveServer
 @using Ptlk.AlarmLogger.Services.Status
+@implements IDisposable
 @inject AlarmLoggerStatusQueryService Status
+@inject AlarmLoggerUiEventHub UiEvents
 
 <div class="page-heading">
     <div>
         <h1>AlarmLogger Status</h1>
-        <span class="muted">Last refreshed: @FormatTimestamp(_lastRefreshedAt)</span>
+        <span class="muted">Live updated: @FormatTimestamp(_lastRefreshedAt)</span>
     </div>
     <button class="btn primary" @onclick="RefreshAsync">Refresh</button>
 </div>
@@ -120,14 +122,49 @@ else
 @code {
     private AlarmLoggerStatusSnapshot? _snapshot;
     private DateTimeOffset? _lastRefreshedAt;
+    private bool _disposed;
 
-    protected override Task OnInitializedAsync() => RefreshAsync();
+    protected override void OnInitialized()
+    {
+        UiEvents.StatusChanged += HandleStatusChanged;
+        Refresh();
+    }
 
     private Task RefreshAsync()
     {
+        Refresh();
+        return Task.CompletedTask;
+    }
+
+    private void Refresh()
+    {
         _snapshot = Status.GetSnapshot();
         _lastRefreshedAt = DateTimeOffset.Now;
-        return Task.CompletedTask;
+    }
+
+    private void HandleStatusChanged()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            Refresh();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        UiEvents.StatusChanged -= HandleStatusChanged;
     }
 
     private static string BoolText(bool value) => value ? "OK" : "No";

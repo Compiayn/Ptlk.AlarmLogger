@@ -4,7 +4,9 @@ using Ptlk.AlarmLogger.Models;
 
 namespace Ptlk.AlarmLogger.Services.Status;
 
-public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOptions> options)
+public sealed class AlarmLoggerRuntimeSnapshotService(
+    IOptions<AlarmLoggerOptions> options,
+    AlarmLoggerUiEventHub uiEvents)
 {
     private readonly object _sync = new();
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
@@ -41,6 +43,8 @@ public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOption
                 AddErrorCore(diagnostic);
             }
         }
+
+        uiEvents.NotifyStatusChanged();
     }
 
     public void SetSubscriptionState(bool healthy)
@@ -49,6 +53,8 @@ public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOption
         {
             _alarmSubscriptionHealthy = healthy;
         }
+
+        uiEvents.NotifyStatusChanged();
     }
 
     public void MarkReceived(DateTimeOffset receivedAt)
@@ -58,6 +64,8 @@ public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOption
             _receivedCount++;
             _lastAlarmEventReceivedAt = receivedAt;
         }
+
+        uiEvents.NotifyStatusChanged();
     }
 
     public void MarkInvalidPayload(string reason)
@@ -67,6 +75,8 @@ public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOption
             _invalidPayloadCount++;
             AddErrorCore(reason);
         }
+
+        uiEvents.NotifyStatusChanged();
     }
 
     public void MarkWriteSuccess(int writtenCount)
@@ -78,6 +88,8 @@ public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOption
             _lastWriteSuccessAt = DateTimeOffset.UtcNow;
             _lastWriteFailureReason = null;
         }
+
+        uiEvents.NotifyStatusChanged();
     }
 
     public void MarkWriteFailure(int failedCount, string reason)
@@ -90,6 +102,8 @@ public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOption
             _lastWriteFailureReason = Sanitize(reason);
             AddErrorCore(reason);
         }
+
+        uiEvents.NotifyStatusChanged();
     }
 
     public void MarkDiagnostic(string reason)
@@ -98,6 +112,8 @@ public sealed class AlarmLoggerRuntimeSnapshotService(IOptions<AlarmLoggerOption
         {
             AddErrorCore(reason);
         }
+
+        uiEvents.NotifyStatusChanged();
     }
 
     public AlarmLoggerStatusSnapshot CreateSnapshot(int queueLength, long queueDroppedCount)

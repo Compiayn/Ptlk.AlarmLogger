@@ -2,13 +2,16 @@
 @rendermode InteractiveServer
 @using Microsoft.Extensions.Options
 @using Ptlk.AlarmLogger.Configuration
+@using Ptlk.AlarmLogger.Services.Status
+@implements IDisposable
 @inject AlarmHistoryQueryService Query
 @inject IOptions<AlarmLoggerOptions> Options
+@inject AlarmLoggerUiEventHub UiEvents
 
 <div class="page-heading">
     <div>
         <h1>Recent Alarm History</h1>
-        <span class="muted">Last refreshed: @FormatTimestamp(_lastRefreshedAt)</span>
+        <span class="muted">Live updated: @FormatTimestamp(_lastRefreshedAt)</span>
     </div>
     <button class="btn primary" @onclick="LoadAsync">Refresh</button>
 </div>
@@ -62,10 +65,47 @@ else
     private AlarmHistoryPageResult? _result;
     private string? _error;
     private DateTimeOffset? _lastRefreshedAt;
+    private bool _disposed;
+    private bool _loading;
+    private bool _loadQueued;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        UiEvents.HistoryChanged += HandleHistoryChanged;
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
+    {
+        if (_loading)
+        {
+            _loadQueued = true;
+            return;
+        }
+
+        do
+        {
+            _loadQueued = false;
+            _loading = true;
+            try
+            {
+                await LoadOnceAsync();
+            }
+            catch
+            {
+                _error = "Failed to load recent alarm history.";
+                _result = null;
+                _lastRefreshedAt = DateTimeOffset.Now;
+            }
+            finally
+            {
+                _loading = false;
+            }
+        }
+        while (_loadQueued && !_disposed);
+    }
+
+    private async Task LoadOnceAsync()
     {
         _error = null;
         var outcome = await Query.QueryPageAsync(0, Options.Value.RecentHistoryTake, "desc", null);
@@ -79,6 +119,31 @@ else
             _result = outcome.Result;
             _lastRefreshedAt = DateTimeOffset.Now;
         }
+    }
+
+    private void HandleHistoryChanged()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        UiEvents.HistoryChanged -= HandleHistoryChanged;
     }
 
     private static string BoolText(bool value) => value ? "Yes" : "No";

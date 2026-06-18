@@ -38,6 +38,7 @@ builder.Services.AddDbContextFactory<HistoryDbContext>((serviceProvider, options
 });
 
 builder.Services.AddSingleton<AlarmLoggerRuntimeSnapshotService>();
+builder.Services.AddSingleton<AlarmLoggerUiEventHub>();
 builder.Services.AddSingleton<AlarmEventQueue>();
 builder.Services.AddSingleton<RedisConnectionFactory>();
 builder.Services.AddSingleton<AlarmHistoryWriter>();

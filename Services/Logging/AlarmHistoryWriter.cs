@@ -8,6 +8,7 @@ namespace Ptlk.AlarmLogger.Services.Logging;
 public sealed class AlarmHistoryWriter(
     IDbContextFactory<HistoryDbContext> dbFactory,
     AlarmLoggerRuntimeSnapshotService status,
+    AlarmLoggerUiEventHub uiEvents,
     ILogger<AlarmHistoryWriter> logger)
 {
     public async Task WriteBatchAsync(
@@ -27,6 +28,7 @@ public sealed class AlarmHistoryWriter(
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             status.MarkWriteSuccess(records.Count);
+            uiEvents.NotifyHistoryChanged();
         }
         catch (Exception ex)
         {
