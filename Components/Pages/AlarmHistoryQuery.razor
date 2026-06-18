@@ -1,0 +1,144 @@
+@page "/alarm-history-query"
+@rendermode InteractiveServer
+@inject AlarmHistoryQueryService Query
+
+<div class="page-heading">
+    <div>
+        <h1>Alarm History Query</h1>
+        <span class="muted">Last queried: @FormatTimestamp(_lastQueriedAt)</span>
+    </div>
+    <div class="actions">
+        <button class="btn" @onclick="RunPageAsync">Page</button>
+        <button class="btn primary" @onclick="RunRangeAsync">Range</button>
+    </div>
+</div>
+
+<section class="form-grid">
+    <label>
+        <span>Begin</span>
+        <input @bind="_begin" placeholder="2026-06-18T08:00:00+08:00" />
+    </label>
+    <label>
+        <span>End</span>
+        <input @bind="_end" placeholder="2026-06-18T18:00:00+08:00" />
+    </label>
+    <label>
+        <span>Skip</span>
+        <input type="number" min="0" @bind="_skip" />
+    </label>
+    <label>
+        <span>Take</span>
+        <input type="number" min="1" @bind="_take" />
+    </label>
+    <label>
+        <span>Order</span>
+        <select @bind="_order">
+            <option value="desc">desc</option>
+            <option value="asc">asc</option>
+        </select>
+    </label>
+    <label>
+        <span>Time Zone</span>
+        <input @bind="_timeZone" placeholder="+08:00" />
+    </label>
+</section>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <p class="status danger">@_error</p>
+}
+else if (_items.Count == 0)
+{
+    <p class="status">No rows</p>
+}
+else
+{
+    <div class="table-wrap query-results">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Source</th>
+                    <th>Condition</th>
+                    <th>State</th>
+                    <th>Quality</th>
+                    <th>Ack</th>
+                    <th>Old</th>
+                    <th>New</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in _items)
+                {
+                    <tr>
+                        <td>@FormatTimestamp(item.Timestamp)</td>
+                        <td>@item.SourceName</td>
+                        <td>@item.ConditionName / @item.ConditionSubName</td>
+                        <td><span class="@ActiveBadge(item.ConditionActive)">@ActiveText(item.ConditionActive)</span></td>
+                        <td>@item.Quality</td>
+                        <td>@BoolText(item.IsAcknowledge)</td>
+                        <td>@FormatValue(item.OldValue)</td>
+                        <td>@FormatValue(item.NewValue)</td>
+                        <td class="clip">@item.Message</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private string? _begin = "";
+    private string? _end = "";
+    private int _skip;
+    private int _take = 50;
+    private string _order = "desc";
+    private string? _timeZone = "";
+    private string? _error;
+    private DateTimeOffset? _lastQueriedAt;
+    private IReadOnlyList<AlarmHistoryItem> _items = [];
+
+    private async Task RunRangeAsync()
+    {
+        _error = null;
+        var outcome = await Query.QueryRangeAsync(_begin, _end, _order, _timeZone);
+        if (outcome.Result is null)
+        {
+            _error = outcome.Error;
+            _items = [];
+        }
+        else
+        {
+            _items = outcome.Result.Data;
+            _lastQueriedAt = DateTimeOffset.Now;
+        }
+    }
+
+    private async Task RunPageAsync()
+    {
+        _error = null;
+        var outcome = await Query.QueryPageAsync(_skip, _take, _order, _timeZone);
+        if (outcome.Result is null)
+        {
+            _error = outcome.Error;
+            _items = [];
+        }
+        else
+        {
+            _items = outcome.Result.Data;
+            _lastQueriedAt = DateTimeOffset.Now;
+        }
+    }
+
+    private static string BoolText(bool value) => value ? "Yes" : "No";
+
+    private static string ActiveText(bool value) => value ? "Active" : "Normal";
+
+    private static string ActiveBadge(bool value) => value ? "badge badge-danger" : "badge badge-ok";
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp) =>
+        timestamp?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "-";
+
+    private static string FormatValue(object? value) => value?.ToString() ?? "null";
+}

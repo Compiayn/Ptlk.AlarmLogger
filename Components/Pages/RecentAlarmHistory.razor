@@ -1,0 +1,92 @@
+@page "/recent-alarm-history"
+@rendermode InteractiveServer
+@using Microsoft.Extensions.Options
+@using Ptlk.AlarmLogger.Configuration
+@inject AlarmHistoryQueryService Query
+@inject IOptions<AlarmLoggerOptions> Options
+
+<div class="page-heading">
+    <div>
+        <h1>Recent Alarm History</h1>
+        <span class="muted">Last refreshed: @FormatTimestamp(_lastRefreshedAt)</span>
+    </div>
+    <button class="btn primary" @onclick="LoadAsync">Refresh</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <p class="status danger">@_error</p>
+}
+else if (_result is null)
+{
+    <p class="status">Loading</p>
+}
+else if (_result.Data.Count == 0)
+{
+    <p class="status">No alarm history</p>
+}
+else
+{
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Source</th>
+                    <th>Condition</th>
+                    <th>State</th>
+                    <th>Quality</th>
+                    <th>Ack</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in _result.Data)
+                {
+                    <tr>
+                        <td>@FormatTimestamp(item.Timestamp)</td>
+                        <td>@item.SourceName</td>
+                        <td>@item.ConditionName / @item.ConditionSubName</td>
+                        <td><span class="@ActiveBadge(item.ConditionActive)">@ActiveText(item.ConditionActive)</span></td>
+                        <td>@item.Quality</td>
+                        <td>@BoolText(item.IsAcknowledge)</td>
+                        <td class="clip">@item.Message</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private AlarmHistoryPageResult? _result;
+    private string? _error;
+    private DateTimeOffset? _lastRefreshedAt;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        var outcome = await Query.QueryPageAsync(0, Options.Value.RecentHistoryTake, "desc", null);
+        if (outcome.Result is null)
+        {
+            _error = outcome.Error;
+            _result = null;
+        }
+        else
+        {
+            _result = outcome.Result;
+            _lastRefreshedAt = DateTimeOffset.Now;
+        }
+    }
+
+    private static string BoolText(bool value) => value ? "Yes" : "No";
+
+    private static string ActiveText(bool value) => value ? "Active" : "Normal";
+
+    private static string ActiveBadge(bool value) => value ? "badge badge-danger" : "badge badge-ok";
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp) =>
+        timestamp?.ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "-";
+}

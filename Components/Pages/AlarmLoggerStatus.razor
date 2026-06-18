@@ -1,0 +1,137 @@
+@page "/"
+@page "/alarm-logger-status"
+@rendermode InteractiveServer
+@using Ptlk.AlarmLogger.Services.Status
+@inject AlarmLoggerStatusQueryService Status
+
+<div class="page-heading">
+    <div>
+        <h1>AlarmLogger Status</h1>
+        <span class="muted">Last refreshed: @FormatTimestamp(_lastRefreshedAt)</span>
+    </div>
+    <button class="btn primary" @onclick="RefreshAsync">Refresh</button>
+</div>
+
+@if (_snapshot is null)
+{
+    <p class="status">Loading</p>
+}
+else
+{
+    <section class="summary-grid">
+        <div class="metric">
+            <span>Service</span>
+            <strong>@_snapshot.ServiceStatus</strong>
+        </div>
+        <div class="metric">
+            <span>Redis</span>
+            <strong>@BoolText(_snapshot.RedisConnected)</strong>
+        </div>
+        <div class="metric">
+            <span>Asset Init</span>
+            <strong>@BoolText(_snapshot.AssetInitialized)</strong>
+        </div>
+        <div class="metric">
+            <span>Subscription</span>
+            <strong>@BoolText(_snapshot.AlarmSubscriptionHealthy)</strong>
+        </div>
+        <div class="metric">
+            <span>History DB</span>
+            <strong>@BoolText(_snapshot.HistoryWriteHealthy)</strong>
+        </div>
+        <div class="metric">
+            <span>Queue</span>
+            <strong>@_snapshot.QueueLength</strong>
+        </div>
+    </section>
+
+    <section class="summary-grid counters">
+        <div class="metric">
+            <span>Received</span>
+            <strong>@_snapshot.ReceivedCount</strong>
+        </div>
+        <div class="metric">
+            <span>Written</span>
+            <strong>@_snapshot.WrittenCount</strong>
+        </div>
+        <div class="metric">
+            <span>Failed Writes</span>
+            <strong>@_snapshot.FailedWriteCount</strong>
+        </div>
+        <div class="metric">
+            <span>Invalid Payload</span>
+            <strong>@_snapshot.InvalidPayloadCount</strong>
+        </div>
+        <div class="metric">
+            <span>Dropped Queue</span>
+            <strong>@_snapshot.QueueDroppedCount</strong>
+        </div>
+        <div class="metric">
+            <span>Instance</span>
+            <strong>@_snapshot.InstanceId</strong>
+        </div>
+    </section>
+
+    <section class="table-wrap">
+        <table class="data-table compact">
+            <tbody>
+                <tr>
+                    <th>Started</th>
+                    <td>@FormatTimestamp(_snapshot.StartedAt)</td>
+                    <th>Last Event</th>
+                    <td>@FormatTimestamp(_snapshot.LastAlarmEventReceivedAt)</td>
+                </tr>
+                <tr>
+                    <th>Last Write</th>
+                    <td>@FormatTimestamp(_snapshot.LastWriteSuccessAt)</td>
+                    <th>Last Failure</th>
+                    <td>@FormatTimestamp(_snapshot.LastWriteFailureAt)</td>
+                </tr>
+                <tr>
+                    <th>Failure Reason</th>
+                    <td colspan="3">@(_snapshot.LastWriteFailureReason ?? "-")</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <h2>Recent Errors</h2>
+    @if (_snapshot.RecentErrors.Count == 0)
+    {
+        <p class="status ok">No recent errors</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table class="data-table compact">
+                <tbody>
+                    @foreach (var error in _snapshot.RecentErrors)
+                    {
+                        <tr>
+                            <td>@error</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private AlarmLoggerStatusSnapshot? _snapshot;
+    private DateTimeOffset? _lastRefreshedAt;
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private Task RefreshAsync()
+    {
+        _snapshot = Status.GetSnapshot();
+        _lastRefreshedAt = DateTimeOffset.Now;
+        return Task.CompletedTask;
+    }
+
+    private static string BoolText(bool value) => value ? "OK" : "No";
+
+    private static string FormatTimestamp(DateTimeOffset? timestamp) =>
+        timestamp?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "-";
+}
