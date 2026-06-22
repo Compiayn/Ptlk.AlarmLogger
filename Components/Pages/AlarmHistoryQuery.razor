@@ -41,6 +41,10 @@
         <span>Time Zone</span>
         <input @bind="_timeZone" placeholder="+08:00" />
     </label>
+    <label>
+        <span>Category</span>
+        <input @bind="_categoryTag" placeholder="optional" />
+    </label>
 </section>
 
 @if (!string.IsNullOrWhiteSpace(_error))
@@ -59,6 +63,7 @@ else
                 <tr>
                     <th>Timestamp</th>
                     <th>Source</th>
+                    <th>Category</th>
                     <th>Condition</th>
                     <th>State</th>
                     <th>Quality</th>
@@ -74,10 +79,11 @@ else
                     <tr>
                         <td>@FormatTimestamp(item.Timestamp)</td>
                         <td>@item.SourceName</td>
+                        <td>@(item.CategoryTag ?? "-")</td>
                         <td>@item.ConditionName / @item.ConditionSubName</td>
                         <td><span class="@ActiveBadge(item.ConditionActive)">@ActiveText(item.ConditionActive)</span></td>
                         <td>@item.Quality</td>
-                        <td>@BoolText(item.IsAcknowledge)</td>
+                        <td>@AckText(item)</td>
                         <td>@FormatValue(item.OldValue)</td>
                         <td>@FormatValue(item.NewValue)</td>
                         <td class="clip">@item.Message</td>
@@ -95,6 +101,7 @@ else
     private int _take = 50;
     private string _order = "desc";
     private string? _timeZone = "";
+    private string? _categoryTag = "";
     private string? _error;
     private DateTimeOffset? _lastQueriedAt;
     private IReadOnlyList<AlarmHistoryItem> _items = [];
@@ -102,7 +109,7 @@ else
     private async Task RunRangeAsync()
     {
         _error = null;
-        var outcome = await Query.QueryRangeAsync(_begin, _end, _order, _timeZone);
+        var outcome = await Query.QueryRangeAsync(_begin, _end, _order, _timeZone, _categoryTag);
         if (outcome.Result is null)
         {
             _error = outcome.Error;
@@ -118,7 +125,7 @@ else
     private async Task RunPageAsync()
     {
         _error = null;
-        var outcome = await Query.QueryPageAsync(_skip, _take, _order, _timeZone);
+        var outcome = await Query.QueryPageAsync(_skip, _take, _order, _timeZone, _categoryTag);
         if (outcome.Result is null)
         {
             _error = outcome.Error;
@@ -131,7 +138,10 @@ else
         }
     }
 
-    private static string BoolText(bool value) => value ? "Yes" : "No";
+    private static string AckText(AlarmHistoryItem item) =>
+        item.NeedAck ? "Need Ack"
+        : item.IsAcknowledge ? "Acknowledged"
+        : "Clear";
 
     private static string ActiveText(bool value) => value ? "Active" : "Normal";
 

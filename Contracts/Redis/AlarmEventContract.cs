@@ -13,6 +13,8 @@ public sealed class AlarmEventContract
     public long? EventTime { get; set; }
     public long? Timestamp { get; set; }
     public bool? IsAcknowledge { get; set; }
+    public bool? NeedAck { get; set; }
+    public string? CategoryTag { get; set; }
     public JsonElement? OldValue { get; set; }
     public JsonElement? NewValue { get; set; }
     public string? Message { get; set; }

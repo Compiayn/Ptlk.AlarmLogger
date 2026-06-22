@@ -36,6 +36,7 @@ else
                 <tr>
                     <th>Timestamp</th>
                     <th>Source</th>
+                    <th>Category</th>
                     <th>Condition</th>
                     <th>State</th>
                     <th>Quality</th>
@@ -49,10 +50,11 @@ else
                     <tr>
                         <td>@FormatTimestamp(item.Timestamp)</td>
                         <td>@item.SourceName</td>
+                        <td>@(item.CategoryTag ?? "-")</td>
                         <td>@item.ConditionName / @item.ConditionSubName</td>
                         <td><span class="@ActiveBadge(item.ConditionActive)">@ActiveText(item.ConditionActive)</span></td>
                         <td>@item.Quality</td>
-                        <td>@BoolText(item.IsAcknowledge)</td>
+                        <td>@AckText(item)</td>
                         <td class="clip">@item.Message</td>
                     </tr>
                 }
@@ -108,7 +110,7 @@ else
     private async Task LoadOnceAsync()
     {
         _error = null;
-        var outcome = await Query.QueryPageAsync(0, Options.Value.RecentHistoryTake, "desc", null);
+        var outcome = await Query.QueryPageAsync(0, Options.Value.RecentHistoryTake, "desc", null, null);
         if (outcome.Result is null)
         {
             _error = outcome.Error;
@@ -146,7 +148,10 @@ else
         UiEvents.HistoryChanged -= HandleHistoryChanged;
     }
 
-    private static string BoolText(bool value) => value ? "Yes" : "No";
+    private static string AckText(AlarmHistoryItem item) =>
+        item.NeedAck ? "Need Ack"
+        : item.IsAcknowledge ? "Acknowledged"
+        : "Clear";
 
     private static string ActiveText(bool value) => value ? "Active" : "Normal";
 

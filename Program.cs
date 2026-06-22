@@ -23,6 +23,9 @@ if (string.IsNullOrWhiteSpace(historyConnection))
 {
     throw new InvalidOperationException("ConnectionStrings:HistoryConnection is required.");
 }
+var historySchema = OptionsRegistration.IsSafeIdentifier(builder.Configuration["AlarmLogger:HistorySchema"])
+    ? builder.Configuration["AlarmLogger:HistorySchema"]!
+    : "alarm_logger";
 
 var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"]
     ?? (builder.Environment.IsDevelopment() ? "data-protection-keys" : "/data/data-protection-keys");
@@ -33,7 +36,9 @@ builder.Services.AddDataProtection()
 
 builder.Services.AddDbContextFactory<HistoryDbContext>((serviceProvider, options) =>
 {
-    options.UseNpgsql(historyConnection)
+    options.UseNpgsql(
+            historyConnection,
+            npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", historySchema))
         .UseSnakeCaseNamingConvention();
 });
 
@@ -59,10 +64,14 @@ using (var scope = app.Services.CreateScope())
 {
     var historyDbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<HistoryDbContext>>();
     await using var historyDb = await historyDbFactory.CreateDbContextAsync();
+    var alarmLoggerOptions = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AlarmLoggerOptions>>();
+    await HistoryDatabaseInitializer.PrepareMigrationsAsync(
+        historyDb,
+        alarmLoggerOptions);
     await historyDb.Database.MigrateAsync();
     await HistoryDatabaseInitializer.InitializeTimescaleAsync(
         historyDb,
-        scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AlarmLoggerOptions>>());
+        alarmLoggerOptions);
 }
 
 if (!app.Environment.IsDevelopment())
@@ -87,15 +96,17 @@ app.MapGet("/api/alarm-logger/history/range", (
     string? end,
     string? order,
     string? time_zone,
+    string? category_tag,
     AlarmHistoryQueryService query,
-    CancellationToken cancellationToken) => query.QueryRangeHttpAsync(begin, end, order, time_zone, cancellationToken));
+    CancellationToken cancellationToken) => query.QueryRangeHttpAsync(begin, end, order, time_zone, category_tag, cancellationToken));
 
 app.MapGet("/api/alarm-logger/history/page", (
     int? skip,
     int? take,
     string? order,
     string? time_zone,
+    string? category_tag,
     AlarmHistoryQueryService query,
-    CancellationToken cancellationToken) => query.QueryPageHttpAsync(skip, take, order, time_zone, cancellationToken));
+    CancellationToken cancellationToken) => query.QueryPageHttpAsync(skip, take, order, time_zone, category_tag, cancellationToken));
 
 app.Run();

@@ -26,6 +26,7 @@ public sealed class HistoryDbContext(
             entity.HasKey(x => new { x.Timestamp, x.Id });
             entity.Property(x => x.Id).ValueGeneratedOnAdd();
             entity.Property(x => x.SourceName).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.CategoryTag).HasMaxLength(160);
             entity.Property(x => x.ConditionName)
                 .HasConversion<string>()
                 .HasMaxLength(32)
@@ -43,6 +44,8 @@ public sealed class HistoryDbContext(
             entity.HasIndex(x => new { x.SourceName, x.Timestamp }).IsDescending(false, true);
             entity.HasIndex(x => x.ConditionActive);
             entity.HasIndex(x => x.IsAcknowledge);
+            entity.HasIndex(x => x.NeedAck);
+            entity.HasIndex(x => x.CategoryTag);
             entity.HasIndex(x => x.Quality);
         });
     }

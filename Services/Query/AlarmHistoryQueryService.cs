@@ -13,12 +13,14 @@ public sealed record AlarmHistoryItem(
     DateTimeOffset Timestamp,
     DateTimeOffset EventTime,
     string SourceName,
+    string? CategoryTag,
     string ConditionName,
     string ConditionSubName,
     bool ConditionActive,
     string Quality,
     DateTimeOffset QualityTime,
     bool IsAcknowledge,
+    bool NeedAck,
     object? OldValue,
     object? NewValue,
     string Message,
@@ -89,9 +91,10 @@ public sealed class AlarmHistoryQueryService(
         string? end,
         string? order,
         string? timeZone,
+        string? categoryTag,
         CancellationToken cancellationToken = default)
     {
-        var outcome = await QueryRangeAsync(begin, end, order, timeZone, cancellationToken);
+        var outcome = await QueryRangeAsync(begin, end, order, timeZone, categoryTag, cancellationToken);
         return ToHttpResult(outcome);
     }
 
@@ -100,9 +103,10 @@ public sealed class AlarmHistoryQueryService(
         int? take,
         string? order,
         string? timeZone,
+        string? categoryTag,
         CancellationToken cancellationToken = default)
     {
-        var outcome = await QueryPageAsync(skip, take, order, timeZone, cancellationToken);
+        var outcome = await QueryPageAsync(skip, take, order, timeZone, categoryTag, cancellationToken);
         return ToHttpResult(outcome);
     }
 
@@ -111,6 +115,7 @@ public sealed class AlarmHistoryQueryService(
         string? end,
         string? order,
         string? timeZone,
+        string? categoryTag,
         CancellationToken cancellationToken = default)
     {
         if (!TryNormalizeOrder(order, out var normalizedOrder, out var orderError))
@@ -166,6 +171,7 @@ public sealed class AlarmHistoryQueryService(
             var endUtc = parsedEnd.Value.ToUniversalTime();
             query = query.Where(x => x.Timestamp <= endUtc);
         }
+        query = ApplyCategoryFilter(query, categoryTag);
 
         query = normalizedOrder == "asc"
             ? query.OrderBy(x => x.Timestamp).ThenBy(x => x.Id)
@@ -190,6 +196,7 @@ public sealed class AlarmHistoryQueryService(
         int? take,
         string? order,
         string? timeZone,
+        string? categoryTag,
         CancellationToken cancellationToken = default)
     {
         if (!TryNormalizeOrder(order, out var normalizedOrder, out var orderError))
@@ -214,8 +221,8 @@ public sealed class AlarmHistoryQueryService(
         }
 
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
-        var totalCount = await db.AlarmHistoryRecords.CountAsync(cancellationToken);
-        var query = db.AlarmHistoryRecords.AsNoTracking();
+        var query = ApplyCategoryFilter(db.AlarmHistoryRecords.AsNoTracking(), categoryTag);
+        var totalCount = await query.CountAsync(cancellationToken);
         query = normalizedOrder == "asc"
             ? query.OrderBy(x => x.Timestamp).ThenBy(x => x.Id)
             : query.OrderByDescending(x => x.Timestamp).ThenByDescending(x => x.Id);
@@ -246,18 +253,33 @@ public sealed class AlarmHistoryQueryService(
         return Results.BadRequest(new { error = outcome.Error });
     }
 
+    private static IQueryable<AlarmHistoryRecord> ApplyCategoryFilter(
+        IQueryable<AlarmHistoryRecord> query,
+        string? categoryTag)
+    {
+        if (string.IsNullOrWhiteSpace(categoryTag))
+        {
+            return query;
+        }
+
+        var normalized = categoryTag.Trim();
+        return query.Where(x => x.CategoryTag == normalized);
+    }
+
     private AlarmHistoryItem ToItem(AlarmHistoryRecord record, QueryTimeZoneSetting timeZone)
     {
         return new AlarmHistoryItem(
             ConvertTimestampToTimeZone(record.Timestamp, timeZone),
             ConvertTimestampToTimeZone(record.EventTime, timeZone),
             record.SourceName,
+            record.CategoryTag,
             record.ConditionName.ToString(),
             record.ConditionSubName,
             record.ConditionActive,
             record.Quality.ToString(),
             ConvertTimestampToTimeZone(record.QualityTime, timeZone),
             record.IsAcknowledge,
+            record.NeedAck,
             ParseJsonValue(record.OldValueJson),
             ParseJsonValue(record.NewValueJson),
             record.Message,

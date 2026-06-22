@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Ptlk.AlarmLogger.Data;
@@ -11,9 +12,11 @@ using Ptlk.AlarmLogger.Data;
 namespace Ptlk.AlarmLogger.Data.HistoryMigrations
 {
     [DbContext(typeof(HistoryDbContext))]
-    partial class HistoryDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260622100721_AddAckCategoryFields")]
+    partial class AddAckCategoryFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -57,6 +60,11 @@ namespace Ptlk.AlarmLogger.Data.HistoryMigrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("condition_sub_name");
+
+                    b.Property<bool>("EnableAck")
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("enable_ack");
 
                     b.Property<DateTimeOffset>("EventTime")
                         .HasColumnType("timestamp with time zone")

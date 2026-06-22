@@ -77,7 +77,9 @@ public sealed class AlarmEventProcessorHostedService(
                 || !TryGetRequiredUnixMs(root, "EventTime", out var eventTime, out error)
                 || !TryGetRequiredUnixMs(root, "Timestamp", out var timestamp, out error)
                 || !TryGetRequiredBool(root, "IsAcknowledge", out var isAcknowledge, out error)
+                || !TryGetRequiredBool(root, "NeedAck", out var needAck, out error)
                 || !TryGetRequiredString(root, "Message", out var message, out error)
+                || !TryGetOptionalString(root, "CategoryTag", out var categoryTag, out error)
                 || !TryGetOptionalScalarJson(root, "OldValue", out var oldValueJson, out error)
                 || !TryGetOptionalScalarJson(root, "NewValue", out var newValueJson, out error))
             {
@@ -89,12 +91,14 @@ public sealed class AlarmEventProcessorHostedService(
                 Timestamp = timestamp,
                 EventTime = eventTime,
                 SourceName = sourceName,
+                CategoryTag = categoryTag,
                 ConditionName = conditionName,
                 ConditionSubName = conditionSubName,
                 ConditionActive = conditionActive,
                 Quality = quality,
                 QualityTime = qualityTime,
                 IsAcknowledge = isAcknowledge,
+                NeedAck = needAck,
                 OldValueJson = oldValueJson,
                 NewValueJson = newValueJson,
                 Message = message,
@@ -124,6 +128,36 @@ public sealed class AlarmEventProcessorHostedService(
         {
             error = $"{propertyName} cannot be empty.";
             return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryGetOptionalString(
+        JsonElement root,
+        string propertyName,
+        out string? value,
+        out string error)
+    {
+        value = null;
+        error = "";
+        if (!root.TryGetProperty(propertyName, out var property)
+            || property.ValueKind == JsonValueKind.Null
+            || property.ValueKind == JsonValueKind.Undefined)
+        {
+            return true;
+        }
+
+        if (property.ValueKind != JsonValueKind.String)
+        {
+            error = $"{propertyName} must be a string or null.";
+            return false;
+        }
+
+        value = property.GetString()?.Trim();
+        if (value?.Length == 0)
+        {
+            value = null;
         }
 
         return true;

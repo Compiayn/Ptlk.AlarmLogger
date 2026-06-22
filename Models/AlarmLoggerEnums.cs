@@ -8,6 +8,7 @@ public enum AlarmConditionName
 
 public enum AlarmQuality
 {
+    Unset,
     Good,
     Uncertain,
     Bad
